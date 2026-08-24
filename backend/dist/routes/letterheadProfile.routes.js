@@ -1,0 +1,10 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const letterheadProfile_controller_js_1 = require("../controllers/letterheadProfile.controller.js");
+const router = (0, express_1.Router)();
+router.get('/', letterheadProfile_controller_js_1.getProfiles);
+router.post('/', letterheadProfile_controller_js_1.createProfile);
+router.put('/:id', letterheadProfile_controller_js_1.updateProfile);
+router.delete('/:id', letterheadProfile_controller_js_1.deleteProfile);
+exports.default = router;

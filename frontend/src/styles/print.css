@@ -1,0 +1,71 @@
+@media print {
+  body, html {
+    background: #ffffff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide all UI components */
+  .editor-navbar,
+  .editor-menubar,
+  .editor-toolbar,
+  .table-quick-toolbar,
+  .modal-overlay,
+  .toast-container,
+  .btn,
+  .no-print {
+    display: none !important;
+  }
+
+  .editor-layout {
+    height: auto !important;
+    width: 100% !important;
+    overflow: visible !important;
+    background: transparent !important;
+  }
+
+  .editor-workspace {
+    padding: 0 !important;
+    background: transparent !important;
+    overflow: visible !important;
+  }
+
+  .document-page-wrapper {
+    transform: none !important;
+    margin: 0 !important;
+  }
+
+  .document-page {
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    width: 100% !important;
+    min-height: 100% !important;
+    padding: 0 !important;
+  }
+
+  .page-break-line {
+    page-break-before: always !important;
+    border: none !important;
+    margin: 0 !important;
+  }
+  .page-break-line::after {
+    display: none !important;
+  }
+
+  /* Table print optimization */
+  table {
+    page-break-inside: auto;
+  }
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+  thead {
+    display: table-header-group;
+  }
+  tfoot {
+    display: table-footer-group;
+  }
+}
