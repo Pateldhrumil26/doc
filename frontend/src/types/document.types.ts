@@ -77,6 +77,8 @@ export interface DocumentItem {
   templateId?: string;
   isFavorite: boolean;
   isArchived: boolean;
+  currentVersion?: string;
+  versionCount?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -95,5 +97,44 @@ export interface DocumentListResponse {
   data: {
     documents: DocumentItem[];
     folders: string[];
+  };
+}
+
+export interface DocumentVersion {
+  _id: string;
+  documentId: string;
+  versionNumber: string; // e.g. 'v1.0', 'v1.1', 'v1.2'
+  versionIndex: number;
+  title: string;
+  content: string;
+  header: DocHeader;
+  footer: DocFooter;
+  letterpadConfig: LetterpadConfig;
+  pageSize: PageSize;
+  customDimensions?: CustomDimensions;
+  orientation: PageOrientation;
+  margins: DocMargins;
+  zoom: number;
+  changeSummary: string; // e.g. 'Initial document', 'Header changed', 'Text updated'
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DocumentVersionListResponse {
+  success: boolean;
+  count: number;
+  data: {
+    versions: DocumentVersion[];
+    currentVersion: string;
+  };
+}
+
+export interface DocumentVersionResponse {
+  success: boolean;
+  message?: string;
+  data: {
+    version: DocumentVersion;
+    document?: DocumentItem;
   };
 }

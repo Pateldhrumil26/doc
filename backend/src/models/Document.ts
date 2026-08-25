@@ -71,6 +71,8 @@ export interface IDocument extends MongooseDocument {
   templateId?: Types.ObjectId;
   isFavorite: boolean;
   isArchived: boolean;
+  currentVersion?: string;
+  versionCount?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -182,6 +184,14 @@ const DocumentSchema = new Schema<IDocument>(
     isArchived: {
       type: Boolean,
       default: false,
+    },
+    currentVersion: {
+      type: String,
+      default: 'v1.0',
+    },
+    versionCount: {
+      type: Number,
+      default: 1,
     },
   },
   {

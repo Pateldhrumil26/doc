@@ -17,6 +17,7 @@ import Link from '@tiptap/extension-link';
 import Subscript from '@tiptap/extension-subscript';
 import Superscript from '@tiptap/extension-superscript';
 import html2pdf from 'html2pdf.js';
+import { RotateCcw, XCircle, Clock, Eye, AlertCircle } from 'lucide-react';
 
 import { FontSize } from '../components/editor/extensions/FontSize.js';
 import { LineHeight } from '../components/editor/extensions/LineHeight.js';
@@ -32,6 +33,7 @@ import { PageSettingsModal } from '../components/editor/PageSettingsModal.js';
 import { ImageModal } from '../components/editor/ImageModal.js';
 import { LinkModal } from '../components/editor/LinkModal.js';
 import { LetterheadDrawer } from '../components/editor/LetterheadDrawer.js';
+import { VersionHistoryDrawer } from '../components/editor/VersionHistoryDrawer.js';
 import {
   CompanyProfileModal,
   getActiveCompanyProfile,
@@ -39,12 +41,14 @@ import {
 } from '../components/dashboard/CompanyProfileModal.js';
 
 import { documentApi } from '../api/documentApi.js';
+import { versionApi } from '../api/versionApi.js';
 import { useToast } from '../context/ToastContext.js';
 import {
   DocFooter,
   DocHeader,
   DocMargins,
   DocumentItem,
+  DocumentVersion,
   LetterpadConfig,
   PageOrientation,
   PageSize,
@@ -82,17 +86,22 @@ export const EditorPage: React.FC = () => {
   });
   const [currentProfileId, setCurrentProfileId] = useState<string | null>(null);
   const [currentProfileName, setCurrentProfileName] = useState<string>('');
+  const [currentVersionNumber, setCurrentVersionNumber] = useState<string>('v1.0');
   const [loading, setLoading] = useState(true);
+
+  // Version Preview Mode
+  const [previewVersion, setPreviewVersion] = useState<DocumentVersion | null>(null);
 
   // Explicit Save Tracking
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
-  // Modals & Drawer
+  // Modals & Drawers
   const [isPageSettingsOpen, setIsPageSettingsOpen] = useState(false);
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isVersionHistoryOpen, setIsVersionHistoryOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
 
@@ -132,9 +141,11 @@ export const EditorPage: React.FC = () => {
     ],
     content: '',
     onUpdate: ({ editor }) => {
-      setContent(editor.getHTML());
-      setHasUnsavedChanges(true);
-      setSaveStatus('unsaved');
+      if (!previewVersion) {
+        setContent(editor.getHTML());
+        setHasUnsavedChanges(true);
+        setSaveStatus('unsaved');
+      }
     },
   });
 
@@ -162,6 +173,7 @@ export const EditorPage: React.FC = () => {
           setTitle('Untitled Document');
           setContent('<p></p>');
         }
+        setCurrentVersionNumber('v1.0');
         setHasUnsavedChanges(true);
         setSaveStatus('unsaved');
         setLoading(false);
@@ -186,6 +198,7 @@ export const EditorPage: React.FC = () => {
           if (doc.header) setHeader(doc.header);
           if (doc.footer) setFooter(doc.footer);
           if (doc.letterpadConfig) setLetterpadConfig(doc.letterpadConfig);
+          if (doc.currentVersion) setCurrentVersionNumber(doc.currentVersion);
 
           if (editor) {
             editor.commands.setContent(doc.content || '<p></p>');
@@ -204,10 +217,66 @@ export const EditorPage: React.FC = () => {
     initEditor();
   }, [id, editor, location.state, navigate, error]);
 
-  const isLetterheadActive = Boolean(header?.enabled || footer?.enabled);
+  // Handle Version Preview Mode toggling
+  const handlePreviewVersion = (version: DocumentVersion | null) => {
+    setPreviewVersion(version);
+    if (editor) {
+      if (version) {
+        editor.setEditable(false);
+        editor.commands.setContent(version.content || '<p></p>');
+      } else {
+        editor.setEditable(true);
+        editor.commands.setContent(content || '<p></p>');
+      }
+    }
+  };
+
+  // Restore Version Handler (Non-destructive)
+  const handleRestoreVersion = async (versionToRestore: DocumentVersion) => {
+    if (!docId) return;
+
+    try {
+      setLoading(true);
+      const res = await versionApi.restoreVersion(docId, versionToRestore._id);
+      if (res.success && res.data.document) {
+        const restoredDoc = res.data.document;
+        setDocData(restoredDoc);
+        setTitle(restoredDoc.title);
+        setContent(restoredDoc.content);
+        setFolder(restoredDoc.folder || 'General');
+        setPageSize(restoredDoc.pageSize || 'A4');
+        setOrientation(restoredDoc.orientation || 'portrait');
+        if (restoredDoc.margins) setMargins(restoredDoc.margins);
+        if (restoredDoc.zoom) setZoom(restoredDoc.zoom);
+        if (restoredDoc.header) setHeader(restoredDoc.header);
+        if (restoredDoc.footer) setFooter(restoredDoc.footer);
+        if (restoredDoc.letterpadConfig) setLetterpadConfig(restoredDoc.letterpadConfig);
+        if (restoredDoc.currentVersion) setCurrentVersionNumber(restoredDoc.currentVersion);
+
+        // Exit preview mode and re-enable editor
+        setPreviewVersion(null);
+        if (editor) {
+          editor.setEditable(true);
+          editor.commands.setContent(restoredDoc.content || '<p></p>');
+        }
+
+        setHasUnsavedChanges(false);
+        setSaveStatus('saved');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const isLetterheadActive = Boolean(
+    (previewVersion ? previewVersion.header : header)?.enabled ||
+    (previewVersion ? previewVersion.footer : footer)?.enabled
+  );
 
   // Directly Apply Selected Header & Footer preset to Document (Aesthetic Arc Design)
   const handleSelectProfile = (profile: CompanyProfile) => {
+    if (previewVersion) return;
+
     setCurrentProfileId(profile.id);
     setCurrentProfileName(profile.name || profile.companyName);
 
@@ -232,6 +301,8 @@ export const EditorPage: React.FC = () => {
   };
 
   const handleRemoveLetterhead = () => {
+    if (previewVersion) return;
+
     setHeader((prev) => ({ ...prev, enabled: false }));
     setFooter((prev) => ({ ...prev, enabled: false }));
     setCurrentProfileId(null);
@@ -250,17 +321,10 @@ export const EditorPage: React.FC = () => {
     handleSelectProfile(newProfile);
   };
 
-  const handleToggleLetterhead = () => {
-    if (isLetterheadActive) {
-      handleRemoveLetterhead();
-    } else {
-      const active = getActiveCompanyProfile();
-      handleSelectProfile(active);
-    }
-  };
-
-  // Handle Explicit Manual Save
+  // Handle Explicit Manual Save & Version Generation
   const handleSaveDocument = useCallback(async () => {
+    if (previewVersion) return;
+
     try {
       setSaveStatus('saving');
 
@@ -284,18 +348,21 @@ export const EditorPage: React.FC = () => {
           const newDoc = res.data.document;
           setDocId(newDoc._id);
           setDocData(newDoc);
+          if (newDoc.currentVersion) setCurrentVersionNumber(newDoc.currentVersion);
           setHasUnsavedChanges(false);
           setSaveStatus('saved');
           window.history.replaceState(null, '', `/editor/${newDoc._id}`);
-          success('Document saved to All Documents!');
+          success('Document saved & Version v1.0 created!');
         }
       } else {
-        // Update existing document
+        // Update existing document & snapshot version
         const res = await documentApi.updateDocument(docId, payload);
-        if (res.success) {
+        if (res.success && res.data.document) {
+          const updatedDoc = res.data.document;
+          if (updatedDoc.currentVersion) setCurrentVersionNumber(updatedDoc.currentVersion);
           setHasUnsavedChanges(false);
           setSaveStatus('saved');
-          success('All changes saved!');
+          success(`Saved successfully (${updatedDoc.currentVersion || 'Current'})!`);
         }
       }
     } catch (err: any) {
@@ -314,6 +381,7 @@ export const EditorPage: React.FC = () => {
     header,
     footer,
     letterpadConfig,
+    previewVersion,
     success,
     error,
   ]);
@@ -334,6 +402,7 @@ export const EditorPage: React.FC = () => {
   }, [handleSaveDocument]);
 
   const handleTitleChange = (newTitle: string) => {
+    if (previewVersion) return;
     setTitle(newTitle);
     setHasUnsavedChanges(true);
     setSaveStatus('unsaved');
@@ -345,6 +414,7 @@ export const EditorPage: React.FC = () => {
     margins: DocMargins;
     zoom: number;
   }) => {
+    if (previewVersion) return;
     setPageSize(settings.pageSize);
     setOrientation(settings.orientation);
     setMargins(settings.margins);
@@ -390,17 +460,31 @@ export const EditorPage: React.FC = () => {
     );
   }
 
+  // Determine active view settings (preview version vs active document)
+  const activeHeader = previewVersion ? previewVersion.header : header;
+  const activeFooter = previewVersion ? previewVersion.footer : footer;
+  const activeLetterpadConfig = previewVersion
+    ? previewVersion.letterpadConfig
+    : letterpadConfig;
+  const activePageSize = previewVersion ? previewVersion.pageSize : pageSize;
+  const activeOrientation = previewVersion ? previewVersion.orientation : orientation;
+  const activeMargins = previewVersion ? previewVersion.margins : margins;
+  const activeZoom = previewVersion ? previewVersion.zoom : zoom;
+
   return (
     <div className="editor-layout">
       {/* Top Navbar */}
       <EditorNavbar
-        title={title}
+        title={previewVersion ? `${previewVersion.title || title} (${previewVersion.versionNumber})` : title}
         onTitleChange={handleTitleChange}
         saveStatus={saveStatus}
         hasUnsavedChanges={hasUnsavedChanges}
         onPrint={handlePrint}
         onDownloadPdf={handleDownloadPdf}
         onManualSave={handleSaveDocument}
+        currentVersion={currentVersionNumber}
+        onOpenVersionHistory={() => setIsVersionHistoryOpen(true)}
+        isPreviewingVersion={Boolean(previewVersion)}
       />
 
       {/* Menubar (File, Edit, Insert, Format) */}
@@ -413,45 +497,153 @@ export const EditorPage: React.FC = () => {
         onPrint={handlePrint}
         onDownloadPdf={handleDownloadPdf}
         onDuplicate={handleSaveDocument}
+        onVersionHistory={() => setIsVersionHistoryOpen(true)}
         zoom={zoom}
         onZoomChange={setZoom}
       />
 
       {/* Formatting & Controls Toolbar Ribbon */}
-      <EditorToolbar
-        editor={editor}
-        onImageModal={() => setIsImageModalOpen(true)}
-        onLinkModal={() => setIsLinkModalOpen(true)}
-        onPageSettings={() => setIsPageSettingsOpen(true)}
-        currentProfileId={currentProfileId}
-        isLetterheadActive={isLetterheadActive}
-        onSelectProfile={handleSelectProfile}
-        onOpenAddModal={() => handleOpenAddModal(null)}
-        onRemoveLetterhead={handleRemoveLetterhead}
-        onPrint={handlePrint}
-        zoom={zoom}
-        onZoomChange={setZoom}
-      />
+      {!previewVersion && (
+        <EditorToolbar
+          editor={editor}
+          onImageModal={() => setIsImageModalOpen(true)}
+          onLinkModal={() => setIsLinkModalOpen(true)}
+          onPageSettings={() => setIsPageSettingsOpen(true)}
+          currentProfileId={currentProfileId}
+          isLetterheadActive={isLetterheadActive}
+          onSelectProfile={handleSelectProfile}
+          onOpenAddModal={() => handleOpenAddModal(null)}
+          onRemoveLetterhead={handleRemoveLetterhead}
+          onPrint={handlePrint}
+          zoom={zoom}
+          onZoomChange={setZoom}
+        />
+      )}
+
+      {/* Historical Version Preview Alert Ribbon */}
+      {previewVersion && (
+        <div
+          className="no-print"
+          style={{
+            background: 'linear-gradient(90deg, #faf4f8 0%, #fff7ed 100%)',
+            borderBottom: '1px solid #f0dceb',
+            padding: '8px 20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            boxShadow: '0 2px 8px rgba(117, 47, 102, 0.06)',
+            zIndex: 100,
+            animation: 'slideDown 0.2s ease-out',
+          }}
+        >
+          {/* Left Side: Project Theme Badge & Summary */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                background: 'linear-gradient(135deg, #752f66 0%, #e47f25 100%)',
+                color: '#ffffff',
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                padding: '3px 10px',
+                borderRadius: 20,
+                letterSpacing: '0.04em',
+                textTransform: 'uppercase',
+                boxShadow: '0 2px 6px rgba(117, 47, 102, 0.2)',
+              }}
+            >
+              <Eye size={12} />
+              <span>Snapshot {previewVersion.versionNumber}</span>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: '0.86rem', fontWeight: 600, color: '#1c1e2d' }}>
+                {previewVersion.changeSummary || 'Text updated'}
+              </span>
+
+              <span
+                style={{
+                  fontSize: '0.68rem',
+                  fontWeight: 700,
+                  color: '#e47f25',
+                  background: '#fff7ed',
+                  border: '1px solid #fed7aa',
+                  padding: '1px 7px',
+                  borderRadius: 10,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.03em',
+                }}
+              >
+                Read-Only Preview
+              </span>
+            </div>
+          </div>
+
+          {/* Right Side: Project Action Buttons */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={() => handleRestoreVersion(previewVersion)}
+              style={{
+                background: 'linear-gradient(135deg, #752f66 0%, #e47f25 100%)',
+                color: '#ffffff',
+                borderColor: 'transparent',
+                fontWeight: 600,
+                fontSize: '0.78rem',
+                gap: 6,
+                padding: '5px 14px',
+                borderRadius: 8,
+                boxShadow: '0 2px 6px rgba(117, 47, 102, 0.2)',
+                cursor: 'pointer',
+              }}
+            >
+              <RotateCcw size={13} /> Restore this Version
+            </button>
+
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => handlePreviewVersion(null)}
+              style={{
+                background: '#ffffff',
+                color: '#5d6785',
+                borderColor: '#dbe2ea',
+                fontSize: '0.78rem',
+                fontWeight: 600,
+                gap: 6,
+                padding: '5px 12px',
+                borderRadius: 8,
+                cursor: 'pointer',
+              }}
+            >
+              <XCircle size={13} /> Exit Preview & Return to Current
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Document Workspace Canvas */}
       <main className="editor-workspace">
         <PageCanvas
           ref={printRef}
           editor={editor}
-          pageSize={pageSize}
-          orientation={orientation}
-          margins={margins}
-          zoom={zoom}
-          header={header}
-          footer={footer}
-          letterpadConfig={letterpadConfig}
-          onEditHeader={() => setIsDrawerOpen(true)}
-          onEditFooter={() => setIsDrawerOpen(true)}
-          onEditLetterpad={() => {}}
+          pageSize={activePageSize}
+          orientation={activeOrientation}
+          margins={activeMargins}
+          zoom={activeZoom}
+          header={activeHeader}
+          footer={activeFooter}
+          letterpadConfig={activeLetterpadConfig}
+          onEditHeader={() => !previewVersion && setIsDrawerOpen(true)}
+          onEditFooter={() => !previewVersion && setIsDrawerOpen(true)}
+          onEditLetterpad={() => { }}
         />
 
         {/* Floating contextual table toolbar */}
-        <TableControls editor={editor} />
+        {!previewVersion && <TableControls editor={editor} />}
       </main>
 
       {/* Page Setup Modal */}
@@ -493,7 +685,7 @@ export const EditorPage: React.FC = () => {
         }}
       />
 
-      {/* Slide-over Letterhead Presets Drawer (Slide Show List) */}
+      {/* Slide-over Letterhead Presets Drawer */}
       <LetterheadDrawer
         isOpen={isDrawerOpen}
         onClose={() => setIsDrawerOpen(false)}
@@ -502,6 +694,17 @@ export const EditorPage: React.FC = () => {
         onSelectProfile={handleSelectProfile}
         onOpenAddModal={handleOpenAddModal}
         onRemoveLetterhead={handleRemoveLetterhead}
+      />
+
+      {/* Slide-over Version History Drawer */}
+      <VersionHistoryDrawer
+        isOpen={isVersionHistoryOpen}
+        onClose={() => setIsVersionHistoryOpen(false)}
+        documentId={docId}
+        currentVersionNumber={currentVersionNumber}
+        previewVersionId={previewVersion?._id || null}
+        onPreviewVersion={handlePreviewVersion}
+        onRestoreVersion={handleRestoreVersion}
       />
 
       {/* Add / Edit Custom Header & Footer Modal */}

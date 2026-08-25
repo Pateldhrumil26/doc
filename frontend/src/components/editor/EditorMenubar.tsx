@@ -28,6 +28,7 @@ interface EditorMenubarProps {
   onPrint: () => void;
   onDownloadPdf: () => void;
   onDuplicate: () => void;
+  onVersionHistory?: () => void;
   zoom: number;
   onZoomChange: (z: number) => void;
 }
@@ -41,6 +42,7 @@ export const EditorMenubar: React.FC<EditorMenubarProps> = ({
   onPrint,
   onDownloadPdf,
   onDuplicate,
+  onVersionHistory,
   zoom,
   onZoomChange,
 }) => {
@@ -58,7 +60,7 @@ export const EditorMenubar: React.FC<EditorMenubarProps> = ({
   }, []);
 
   const toggleMenu = (menuName: string) => {
-    setOpenMenu(openMenu === menuName ? null : menuName);
+    setOpenMenu((prev) => (prev === menuName ? null : menuName));
   };
 
   const handleInsertDate = () => {
@@ -84,6 +86,18 @@ export const EditorMenubar: React.FC<EditorMenubarProps> = ({
         </button>
         {openMenu === 'file' && (
           <div className="menu-dropdown-menu">
+            {onVersionHistory && (
+              <button
+                className="menu-action-item"
+                onClick={() => {
+                  onVersionHistory();
+                  setOpenMenu(null);
+                }}
+              >
+                <span>Version history</span>
+                <span className="shortcut">Timeline</span>
+              </button>
+            )}
             <button
               className="menu-action-item"
               onClick={() => {
