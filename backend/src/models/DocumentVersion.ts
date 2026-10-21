@@ -16,6 +16,7 @@ export interface IDocumentVersion extends MongooseDocument {
     height: number;
     unit: 'mm' | 'in' | 'px';
   };
+
   orientation: 'portrait' | 'landscape';
   margins: IDocMargins;
   zoom: number;
