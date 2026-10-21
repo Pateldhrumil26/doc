@@ -47,32 +47,38 @@ A production-ready Letter Pad and Document Editor web application built with **R
 - **Node.js**: v18+ or v22+
 - **MongoDB**: Local MongoDB instance running on `mongodb://127.0.0.1:27017` (or cloud MongoDB URI via `backend/.env`)
 
-### Installation
+### 📦 Installation (One Command)
 
-1. Install backend dependencies:
-   ```bash
-   cd backend
-   npm install
-   ```
+From the project root:
+```bash
+npm install
+```
+*(This automatically installs dependencies for both backend and frontend via `postinstall` / `npm run install:all`)*
 
-2. Install frontend dependencies:
-   ```bash
-   cd frontend
-   npm install
-   ```
+---
 
-### Running the Application
+### 💻 Running the Application (One Command)
 
-1. Start the backend API server (runs on `http://localhost:5000`):
-   ```bash
-   cd backend
-   npm run dev
-   ```
+To run both backend and frontend concurrently with live reloading / fast rebuilds on file changes:
+```bash
+npm run dev
+```
 
-2. In a second terminal, start the frontend Vite development server (runs on `http://localhost:5173`):
-   ```bash
-   cd frontend
-   npm run dev
-   ```
+- **Frontend (Vite HMR):** `http://localhost:5173`
+- **Backend API (tsx watch):** `http://localhost:5001`
 
-3. Open your browser and navigate to `http://localhost:5173`.
+*(Optional single-service commands: `npm run dev:backend` or `npm run dev:frontend`)*
+
+---
+
+### 🛠️ Production Build & CI/CD (One Command)
+
+To build both backend and frontend for production or CI/CD pipelines:
+```bash
+npm run build
+```
+
+This compiles:
+1. `backend`: Compiles TypeScript with `tsc` into `backend/dist/`.
+2. `frontend`: Compiles TypeScript and packages optimized chunks with `vite build` into `frontend/dist/`.
+
