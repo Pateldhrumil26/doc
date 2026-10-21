@@ -19,10 +19,16 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
 
-      - name: Install All Dependencies
-        run: npm run install:all
+      - name: Install Dependencies
+        run: |
+          npm install
+          npm run install:all
+
+      - name: Ensure Executable Permissions
+        run: |
+          chmod -R +x frontend/node_modules/.bin || true
+          chmod -R +x backend/node_modules/.bin || true
 
       - name: Build Both Backend & Frontend
         run: npm run build
